@@ -85,42 +85,42 @@ required-features = ["render"]
 
 [dependencies]
 egui = { version = "0.32", default-features = false }
-bevy_a11y = { version = "0.17.0-rc.2", optional = true }
-bevy_app = { version = "0.17.0-rc.2" }
-bevy_derive = { version = "0.17.0-rc.2" }
-bevy_ecs = { version = "0.17.0-rc.2" }
-bevy_input = { version = "0.17.0-rc.2" }
-bevy_log = { version = "0.17.0-rc.2" }
-bevy_math = { version = "0.17.0-rc.2" }
-bevy_platform = { version = "0.17.0-rc.2" }
-bevy_reflect = { version = "0.17.0-rc.2" }
-bevy_time = { version = "0.17.0-rc.2" }
-bevy_window = { version = "0.17.0-rc.2" }
-bevy_winit = { version = "0.17.0-rc.2" }
-bevy_utils = { version = "0.17.0-rc.2", features = ["debug"] }
+bevy_a11y = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_app = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_derive = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_ecs = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_input = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_log = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_math = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_platform = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_reflect = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_time = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_window = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_winit = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft" }
+bevy_utils = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", features = ["debug"] }
 
 # `open_url` feature
 webbrowser = { version = "1.0.1", optional = true }
 
 # `render` feature
 bytemuck = { version = "1", optional = true }
-bevy_asset = { version = "0.17.0-rc.2", optional = true }
-bevy_camera = { version = "0.17.0-rc.2", optional = true }
-bevy_core_pipeline = { version = "0.17.0-rc.2", optional = true }
-bevy_image = { version = "0.17.0-rc.2", features = ["zstd_rust"], optional = true }
-bevy_mesh = { version = "0.17.0-rc.2", optional = true }
-bevy_render = { version = "0.17.0-rc.2", optional = true }
-bevy_shader = { version = "0.17.0-rc.2", optional = true }
-bevy_tasks = { version = "0.17.0-rc.2", optional = true }
-bevy_transform = { version = "0.17.0-rc.2", optional = true }
-encase = { version = "0.11", optional = true }
+bevy_asset = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_camera = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_core_pipeline = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_image = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", features = ["zstd_rust"], optional = true }
+bevy_mesh = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_render = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_shader = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_tasks = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+bevy_transform = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
+encase = { version = "0.12", optional = true }
 wgpu-types = { version = "26.0", optional = true }
 
 # `bevy_ui` feature
-bevy_ui_render = { version = "0.17.0-rc.2", optional = true }
+bevy_ui_render = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true }
 
 # `picking` feature
-bevy_picking = { version = "0.17.0-rc.2", optional = true, features = ["bevy_mesh_picking_backend"] }
+bevy_picking = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", optional = true, features = ["bevy_mesh_picking_backend"] }
 
 # `manage_clipboard` feature
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
@@ -129,7 +129,7 @@ thread_local = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
 version-sync = "0.9.5"
-bevy = { version = "0.17.0-rc.2", default-features = false, features = [
+bevy = { git = "https://github.com/TeamDman/bevy.git", branch = "teamy-mft", default-features = false, features = [
     "accesskit_unix",
     "bevy_log",
     "bevy_asset",
@@ -176,3 +176,31 @@ js-sys = "0.3.63"
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.36"
 crossbeam-channel = "0.5.8"
+
+
+[patch."https://github.com/TeamDman/bevy"]
+bevy = { path = "D:/Repos/games/bevy" }
+bevy_a11y = { path = "D:/Repos/games/bevy/crates/bevy_a11y" }
+bevy_utils = { path = "D:/Repos/games/bevy/crates/bevy_utils" }
+bevy_asset = { path = "D:/Repos/games/bevy/crates/bevy_asset" }
+bevy_camera = { path = "D:/Repos/games/bevy/crates/bevy_camera" }
+bevy_core_pipeline = { path = "D:/Repos/games/bevy/crates/bevy_core_pipeline" }
+bevy_image = { path = "D:/Repos/games/bevy/crates/bevy_image" }
+bevy_mesh = { path = "D:/Repos/games/bevy/crates/bevy_mesh" }
+bevy_render = { path = "D:/Repos/games/bevy/crates/bevy_render" }
+bevy_shader = { path = "D:/Repos/games/bevy/crates/bevy_shader" }
+bevy_tasks = { path = "D:/Repos/games/bevy/crates/bevy_tasks" }
+bevy_transform = { path = "D:/Repos/games/bevy/crates/bevy_transform" }
+bevy_ui_render = { path = "D:/Repos/games/bevy/crates/bevy_ui_render" }
+bevy_picking = { path = "D:/Repos/games/bevy/crates/bevy_picking" }
+bevy_app = { path = "D:/Repos/games/bevy/crates/bevy_app" }
+bevy_derive = { path = "D:/Repos/games/bevy/crates/bevy_derive" }
+bevy_ecs = { path = "D:/Repos/games/bevy/crates/bevy_ecs" }
+bevy_input = { path = "D:/Repos/games/bevy/crates/bevy_input" }
+bevy_log = { path = "D:/Repos/games/bevy/crates/bevy_log" }
+bevy_math = { path = "D:/Repos/games/bevy/crates/bevy_math" }
+bevy_platform = { path = "D:/Repos/games/bevy/crates/bevy_platform" }
+bevy_reflect = { path = "D:/Repos/games/bevy/crates/bevy_reflect" }
+bevy_time = { path = "D:/Repos/games/bevy/crates/bevy_time" }
+bevy_window = { path = "D:/Repos/games/bevy/crates/bevy_window" }
+bevy_winit = { path = "D:/Repos/games/bevy/crates/bevy_winit" }
