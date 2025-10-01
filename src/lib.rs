@@ -436,6 +436,17 @@ impl Default for EguiGlobalSettings {
 #[derive(Resource)]
 pub struct EnableMultipassForPrimaryContext;
 
+/// If respecting the Bevy camera scale factor, Egui automatic ctrl+/- zooming and DPI scaling will be clobbered.
+#[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScaleBehaviour {
+    /// Any changes to Egui scale factor will be clobbered every frame by the Bevy camera scale factor.
+    ClobberEguiUsingBevyCameraEveryTime,
+    /// Egui scale factor will be clobbered by the Bevy camera scale factor only once, when the context is created.
+    /// After that, the scale factor will be changed to [`ScaleBehaviour::UseEguiScaleFactorOnly`].
+    ClobberEguiUsingBevyCameraOnce,
+    /// Egui scale factor will not be affected by the Bevy camera scale factor.
+    UseEguiScaleFactorOnly,
+}
 /// A component for storing Egui context settings.
 #[derive(Clone, Debug, Component, Reflect)]
 pub struct EguiContextSettings {
@@ -455,6 +466,8 @@ pub struct EguiContextSettings {
     /// }
     /// ```
     pub scale_factor: f32,
+    /// Determines the source of truth for the Egui scale factor.
+    pub scale_behaviour: ScaleBehaviour,
     /// Is used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
@@ -487,6 +500,7 @@ impl Default for EguiContextSettings {
         Self {
             run_manually: false,
             scale_factor: 1.0,
+            scale_behaviour: ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
             #[cfg(feature = "picking")]
@@ -1734,14 +1748,22 @@ impl SubscribedEvents {
 pub struct UpdateUiSizeAndScaleQuery {
     ctx: &'static mut EguiContext,
     egui_input: &'static mut EguiInput,
-    egui_settings: &'static EguiContextSettings,
+    egui_settings: &'static mut EguiContextSettings,
     camera: &'static bevy_camera::Camera,
 }
 
 #[cfg(feature = "render")]
-/// Updates UI [`egui::RawInput::screen_rect`] and calls [`egui::Context::set_pixels_per_point`].
+/// Updates UI [`egui::RawInput::screen_rect`] and sets `native_pixels_per_point` in the input.
+/// 
+/// Note: This does NOT call [`egui::Context::set_pixels_per_point`] anymore, as that would
+/// override egui's zoom_factor. Instead, we set `native_pixels_per_point` in the RawInput,
+/// which egui then multiplies by its zoom_factor internally.
 pub fn update_ui_size_and_scale_system(mut contexts: Query<UpdateUiSizeAndScaleQuery>) {
     for mut context in contexts.iter_mut() {
+        // Check if should avoid clobbering Egui's scale factor.
+        if context.egui_settings.scale_behaviour == ScaleBehaviour::UseEguiScaleFactorOnly {
+            continue;
+        }
         let Some((scale_factor, viewport_rect)) = context
             .camera
             .target_scaling_factor()
@@ -1759,7 +1781,13 @@ pub fn update_ui_size_and_scale_system(mut contexts: Query<UpdateUiSizeAndScaleQ
             continue;
         }
         context.egui_input.screen_rect = Some(viewport_rect);
+
         context.ctx.get_mut().set_pixels_per_point(scale_factor);
+
+        // Switch behaviour if only clobbering once.
+        if context.egui_settings.scale_behaviour == ScaleBehaviour::ClobberEguiUsingBevyCameraOnce {
+            context.egui_settings.scale_behaviour = ScaleBehaviour::UseEguiScaleFactorOnly;
+        }
     }
 }
 
@@ -1786,6 +1814,7 @@ pub fn end_pass_system(
 ) {
     for (mut ctx, egui_settings, mut full_output) in contexts.iter_mut() {
         if !egui_settings.run_manually {
+            // end_pass calls zoom_with_keyboard if enabled in the egui context options
             **full_output = Some(ctx.get_mut().end_pass());
         }
     }

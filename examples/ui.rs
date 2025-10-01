@@ -3,7 +3,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::{
-    EguiContextSettings, EguiContexts, EguiPlugin, EguiPrimaryContextPass, EguiStartupSet,
+    EguiContextSettings, EguiContexts, EguiPlugin, EguiPreUpdateSet, EguiPrimaryContextPass,
+    EguiStartupSet, ScaleBehaviour,
 };
 
 struct Images {
@@ -24,7 +25,10 @@ impl FromWorld for Images {
 /// This example demonstrates the following functionality and use-cases of bevy_egui:
 /// - rendering loaded assets;
 /// - toggling hidpi scaling (by pressing '/' button);
-/// - configuring egui contexts during the startup.
+/// - configuring egui contexts during the startup;
+/// - custom zoom controls via EguiContextSettings (Ctrl+] / Ctrl+[ to zoom in/out).
+///
+/// Note: Egui's built-in zoom controls (Ctrl+Plus / Ctrl+Minus / Ctrl+0) also work!
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
@@ -89,19 +93,44 @@ fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
 
 fn update_ui_scale_factor_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut toggle_scale_factor: Local<Option<bool>>,
-    egui_context: Single<(&mut EguiContextSettings, &Camera)>,
+    egui_context: Single<&mut EguiContextSettings>,
 ) {
-    let (mut egui_settings, camera) = egui_context.into_inner();
-    if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
-        *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
+    let mut egui_settings = egui_context.into_inner();
 
-        let scale_factor = if toggle_scale_factor.unwrap() {
-            1.0
-        } else {
-            1.0 / camera.target_scaling_factor().unwrap_or(1.0)
+    let ctrl_pressed = keyboard_input.pressed(KeyCode::ControlLeft)
+        || keyboard_input.pressed(KeyCode::ControlRight);
+
+    // Handle Ctrl+] (zoom in) and Ctrl+[ (zoom out)
+    // Using different keybinds than egui's default Ctrl+Plus/Minus to avoid conflicts
+    if ctrl_pressed && keyboard_input.just_pressed(KeyCode::BracketRight) {
+        // Ctrl+] (zoom in via scale_factor)
+        egui_settings.scale_factor = (egui_settings.scale_factor * 1.1).min(5.0);
+        info!(
+            "Zoom in (via scale_factor) - scale factor: {}",
+            egui_settings.scale_factor
+        );
+    } else if ctrl_pressed && keyboard_input.just_pressed(KeyCode::BracketLeft) {
+        // Ctrl+[ (zoom out via scale_factor)
+        egui_settings.scale_factor = (egui_settings.scale_factor / 1.1).max(0.1);
+        info!(
+            "Zoom out (via scale_factor) - scale factor: {}",
+            egui_settings.scale_factor
+        );
+    } else if keyboard_input.just_pressed(KeyCode::Slash) {
+        // Cycle scale behaviour
+        egui_settings.scale_behaviour = match egui_settings.scale_behaviour {
+            ScaleBehaviour::ClobberEguiUsingBevyCameraOnce
+            | ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime => {
+                ScaleBehaviour::UseEguiScaleFactorOnly
+            }
+            ScaleBehaviour::UseEguiScaleFactorOnly => {
+                ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime
+            }
         };
-        egui_settings.scale_factor = scale_factor;
+        info!(
+            "Updated scale behaviour: {:?}",
+            egui_settings.scale_behaviour
+        );
     }
 }
 
