@@ -3,8 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::{
-    EguiContextSettings, EguiContexts, EguiPlugin, EguiPreUpdateSet, EguiPrimaryContextPass,
-    EguiStartupSet, ScaleBehaviour,
+    EguiContextSettings, EguiContexts, EguiPlugin, EguiPrimaryContextPass, EguiStartupSet,
 };
 
 struct Images {
@@ -24,11 +23,11 @@ impl FromWorld for Images {
 
 /// This example demonstrates the following functionality and use-cases of bevy_egui:
 /// - rendering loaded assets;
-/// - toggling hidpi scaling (by pressing '/' button);
 /// - configuring egui contexts during the startup;
 /// - custom zoom controls via EguiContextSettings (Ctrl+] / Ctrl+[ to zoom in/out).
 ///
-/// Note: Egui's built-in zoom controls (Ctrl+Plus / Ctrl+Minus / Ctrl+0) also work!
+/// Note: Egui's built-in zoom controls (Ctrl+Plus / Ctrl+Minus / Ctrl+0) now work correctly
+/// and are synchronized with bevy_egui's scale_factor!
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
@@ -115,21 +114,6 @@ fn update_ui_scale_factor_system(
         info!(
             "Zoom out (via scale_factor) - scale factor: {}",
             egui_settings.scale_factor
-        );
-    } else if keyboard_input.just_pressed(KeyCode::Slash) {
-        // Cycle scale behaviour
-        egui_settings.scale_behaviour = match egui_settings.scale_behaviour {
-            ScaleBehaviour::ClobberEguiUsingBevyCameraOnce
-            | ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime => {
-                ScaleBehaviour::UseEguiScaleFactorOnly
-            }
-            ScaleBehaviour::UseEguiScaleFactorOnly => {
-                ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime
-            }
-        };
-        info!(
-            "Updated scale behaviour: {:?}",
-            egui_settings.scale_behaviour
         );
     }
 }

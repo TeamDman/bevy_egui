@@ -436,17 +436,6 @@ impl Default for EguiGlobalSettings {
 #[derive(Resource)]
 pub struct EnableMultipassForPrimaryContext;
 
-/// If respecting the Bevy camera scale factor, Egui automatic ctrl+/- zooming and DPI scaling will be clobbered.
-#[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScaleBehaviour {
-    /// Any changes to Egui scale factor will be clobbered every frame by the Bevy camera scale factor.
-    ClobberEguiUsingBevyCameraEveryTime,
-    /// Egui scale factor will be clobbered by the Bevy camera scale factor only once, when the context is created.
-    /// After that, the scale factor will be changed to [`ScaleBehaviour::UseEguiScaleFactorOnly`].
-    ClobberEguiUsingBevyCameraOnce,
-    /// Egui scale factor will not be affected by the Bevy camera scale factor.
-    UseEguiScaleFactorOnly,
-}
 /// A component for storing Egui context settings.
 #[derive(Clone, Debug, Component, Reflect)]
 pub struct EguiContextSettings {
@@ -466,8 +455,15 @@ pub struct EguiContextSettings {
     /// }
     /// ```
     pub scale_factor: f32,
-    /// Determines the source of truth for the Egui scale factor.
-    pub scale_behaviour: ScaleBehaviour,
+    /// Cache of the camera's target scaling factor from the previous frame.
+    /// Used to detect when the camera scale changes (e.g., moving window to different DPI monitor).
+    camera_scale_factor_cache: f32,
+    /// Cache of the bevy_egui scale_factor from the previous frame.
+    /// Used to detect when the user programmatically changes bevy_egui's scale_factor.
+    bevy_egui_scale_factor_cache: f32,
+    /// Cache of egui's zoom_factor from the previous frame.
+    /// Used to detect when egui's built-in zoom controls (Ctrl+/-, etc.) are used.
+    egui_zoom_factor_cache: f32,
     /// Is used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
@@ -500,7 +496,9 @@ impl Default for EguiContextSettings {
         Self {
             run_manually: false,
             scale_factor: 1.0,
-            scale_behaviour: ScaleBehaviour::ClobberEguiUsingBevyCameraEveryTime,
+            camera_scale_factor_cache: 1.0,
+            bevy_egui_scale_factor_cache: 1.0,
+            egui_zoom_factor_cache: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
             #[cfg(feature = "picking")]
@@ -1044,9 +1042,10 @@ impl Plugin for EguiPlugin {
                 WindowToEguiContextMap::on_egui_context_added_system,
                 WindowToEguiContextMap::on_egui_context_removed_system,
                 ApplyDeferred,
-                debug_scale_factor.with_input("before update_ui_size_and_scale_system"),
+                // Uncomment for debugging scale factor synchronization:
+                // debug_scale_factor.with_input("before update_ui_size_and_scale_system"),
                 update_ui_size_and_scale_system,
-                debug_scale_factor.with_input("after update_ui_size_and_scale_system"),
+                // debug_scale_factor.with_input("after update_ui_size_and_scale_system"),
             )
                 .chain()
                 .in_set(EguiPreUpdateSet::InitContexts),
@@ -1175,9 +1174,10 @@ impl Plugin for EguiPlugin {
         app.add_systems(
             PostUpdate,
             (
-                debug_scale_factor.with_input("before run_egui_context_pass_loop_system"),
+                // Uncomment for debugging scale factor synchronization:
+                // debug_scale_factor.with_input("before run_egui_context_pass_loop_system"),
                 run_egui_context_pass_loop_system,
-                debug_scale_factor.with_input("after run_egui_context_pass_loop_system"),
+                // debug_scale_factor.with_input("after run_egui_context_pass_loop_system"),
                 end_pass_system,
             )
                 .chain()
@@ -1760,66 +1760,84 @@ pub struct UpdateUiSizeAndScaleQuery {
 }
 
 #[cfg(feature = "render")]
-/// Updates UI [`egui::RawInput::screen_rect`] and sets `native_pixels_per_point` in the input.
+/// Updates UI [`egui::RawInput::screen_rect`] and synchronizes scale factors between Bevy and Egui.
 ///
-/// Note: This does NOT call [`egui::Context::set_pixels_per_point`] anymore, as that would
-/// override egui's zoom_factor. Instead, we set `native_pixels_per_point` in the RawInput,
-/// which egui then multiplies by its zoom_factor internally.
+/// This system detects changes from three sources:
+/// 1. Camera scale factor (e.g., moving window to different DPI monitor)
+/// 2. bevy_egui scale_factor (programmatic changes by user)
+/// 3. egui zoom_factor (egui's built-in Ctrl+/- controls)
+///
+/// When only egui's zoom_factor changes independently, it propagates that change back to
+/// bevy_egui's scale_factor to maintain consistency.
 pub fn update_ui_size_and_scale_system(mut contexts: Query<UpdateUiSizeAndScaleQuery>) {
     for mut context in contexts.iter_mut() {
-        // Check if should avoid clobbering Egui's scale factor.
-        if context.egui_settings.scale_behaviour == ScaleBehaviour::UseEguiScaleFactorOnly {
-            continue;
-        }
-        let Some((scale_factor, viewport_rect)) = context
-            .camera
-            .target_scaling_factor()
-            .map(|scale_factor| scale_factor * context.egui_settings.scale_factor)
-            .zip(context.camera.physical_viewport_rect())
-        else {
+        let Some(camera_scale_factor) = context.camera.target_scaling_factor() else {
             continue;
         };
-
+        
+        let current_egui_zoom = context.ctx.get_mut().zoom_factor();
+        let current_bevy_scale = context.egui_settings.scale_factor;
+        
+        // Detect what changed since last frame
+        let camera_changed = (camera_scale_factor - context.egui_settings.camera_scale_factor_cache).abs() > f32::EPSILON;
+        let bevy_scale_changed = (current_bevy_scale - context.egui_settings.bevy_egui_scale_factor_cache).abs() > f32::EPSILON;
+        let egui_zoom_changed = (current_egui_zoom - context.egui_settings.egui_zoom_factor_cache).abs() > f32::EPSILON;
+        
+        // If ONLY egui zoom changed (not camera or bevy_egui scale), propagate to bevy_egui
+        if egui_zoom_changed && !camera_changed && !bevy_scale_changed {
+            // Egui initiated the zoom change, so update bevy_egui's scale_factor to match
+            let zoom_delta = current_egui_zoom / context.egui_settings.egui_zoom_factor_cache;
+            context.egui_settings.scale_factor *= zoom_delta;
+        }
+        
+        // Update caches for next frame
+        context.egui_settings.camera_scale_factor_cache = camera_scale_factor;
+        context.egui_settings.bevy_egui_scale_factor_cache = context.egui_settings.scale_factor;
+        context.egui_settings.egui_zoom_factor_cache = current_egui_zoom;
+        
+        // Calculate final combined scale factor
+        let combined_scale_factor = camera_scale_factor * context.egui_settings.scale_factor;
+        
+        // Update viewport rect
+        let Some(viewport_rect) = context.camera.physical_viewport_rect() else {
+            continue;
+        };
+        
         let viewport_rect = egui::Rect {
-            min: helpers::vec2_into_egui_pos2(viewport_rect.min.as_vec2() / scale_factor),
-            max: helpers::vec2_into_egui_pos2(viewport_rect.max.as_vec2() / scale_factor),
+            min: helpers::vec2_into_egui_pos2(viewport_rect.min.as_vec2() / combined_scale_factor),
+            max: helpers::vec2_into_egui_pos2(viewport_rect.max.as_vec2() / combined_scale_factor),
         };
         if viewport_rect.width() < 1.0 || viewport_rect.height() < 1.0 {
             continue;
         }
         context.egui_input.screen_rect = Some(viewport_rect);
 
-        context.ctx.get_mut().set_pixels_per_point(scale_factor);
-
-        // Switch behaviour if only clobbering once.
-        if context.egui_settings.scale_behaviour == ScaleBehaviour::ClobberEguiUsingBevyCameraOnce {
-            context.egui_settings.scale_behaviour = ScaleBehaviour::UseEguiScaleFactorOnly;
-        }
+        // Set pixels_per_point, which egui will multiply by its internal zoom_factor
+        context.ctx.get_mut().set_pixels_per_point(combined_scale_factor);
     }
 }
 
-/// Used to track the change of scaling contributors over time
+/// Used to track the change of scaling contributors over time.
+/// Useful for debugging scale factor synchronization.
+#[allow(dead_code)]
 pub fn debug_scale_factor(
     InMut(name): InMut<&'static str>,
     mut contexts: Query<UpdateUiSizeAndScaleQuery>,
 ) {
     for mut context in contexts.iter_mut() {
+        let camera_scale = context.camera.target_scaling_factor().unwrap_or(1.0);
         let bevy_egui_scale_factor = context.egui_settings.scale_factor;
         let egui_zoom_factor = context.ctx.get_mut().zoom_factor();
         let egui_pixels_per_point = context.ctx.get_mut().pixels_per_point();
-        // if (
-        //     bevy_egui_scale_factor,
-        //     egui_zoom_factor,
-        //     egui_pixels_per_point,
-        // ) == (1.0, 1.0, 1.0)
-        // {
-        //     continue;
-        // }
+        
         println!(
-            "[{name}] BevyEgui scale factor: {}, Egui zoom factor: {}, Egui pixels per point: {}",
-            context.egui_settings.scale_factor,
-            context.ctx.get_mut().zoom_factor(),
-            context.ctx.get_mut().pixels_per_point(),
+            "[{name}] Camera: {:.2}, BevyEgui: {:.2} (cache: {:.2}), Egui zoom: {:.2} (cache: {:.2}), Egui ppp: {:.2}",
+            camera_scale,
+            bevy_egui_scale_factor,
+            context.egui_settings.bevy_egui_scale_factor_cache,
+            egui_zoom_factor,
+            context.egui_settings.egui_zoom_factor_cache,
+            egui_pixels_per_point,
         );
     }
 }
