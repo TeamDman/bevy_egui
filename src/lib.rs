@@ -1044,7 +1044,9 @@ impl Plugin for EguiPlugin {
                 WindowToEguiContextMap::on_egui_context_added_system,
                 WindowToEguiContextMap::on_egui_context_removed_system,
                 ApplyDeferred,
+                debug_scale_factor.with_input("before update_ui_size_and_scale_system"),
                 update_ui_size_and_scale_system,
+                debug_scale_factor.with_input("after update_ui_size_and_scale_system"),
             )
                 .chain()
                 .in_set(EguiPreUpdateSet::InitContexts),
@@ -1172,7 +1174,12 @@ impl Plugin for EguiPlugin {
         // PostUpdate systems.
         app.add_systems(
             PostUpdate,
-            (run_egui_context_pass_loop_system, end_pass_system)
+            (
+                debug_scale_factor.with_input("before run_egui_context_pass_loop_system"),
+                run_egui_context_pass_loop_system,
+                debug_scale_factor.with_input("after run_egui_context_pass_loop_system"),
+                end_pass_system,
+            )
                 .chain()
                 .in_set(EguiPostUpdateSet::EndPass),
         );
@@ -1754,7 +1761,7 @@ pub struct UpdateUiSizeAndScaleQuery {
 
 #[cfg(feature = "render")]
 /// Updates UI [`egui::RawInput::screen_rect`] and sets `native_pixels_per_point` in the input.
-/// 
+///
 /// Note: This does NOT call [`egui::Context::set_pixels_per_point`] anymore, as that would
 /// override egui's zoom_factor. Instead, we set `native_pixels_per_point` in the RawInput,
 /// which egui then multiplies by its zoom_factor internally.
@@ -1788,6 +1795,32 @@ pub fn update_ui_size_and_scale_system(mut contexts: Query<UpdateUiSizeAndScaleQ
         if context.egui_settings.scale_behaviour == ScaleBehaviour::ClobberEguiUsingBevyCameraOnce {
             context.egui_settings.scale_behaviour = ScaleBehaviour::UseEguiScaleFactorOnly;
         }
+    }
+}
+
+/// Used to track the change of scaling contributors over time
+pub fn debug_scale_factor(
+    InMut(name): InMut<&'static str>,
+    mut contexts: Query<UpdateUiSizeAndScaleQuery>,
+) {
+    for mut context in contexts.iter_mut() {
+        let bevy_egui_scale_factor = context.egui_settings.scale_factor;
+        let egui_zoom_factor = context.ctx.get_mut().zoom_factor();
+        let egui_pixels_per_point = context.ctx.get_mut().pixels_per_point();
+        // if (
+        //     bevy_egui_scale_factor,
+        //     egui_zoom_factor,
+        //     egui_pixels_per_point,
+        // ) == (1.0, 1.0, 1.0)
+        // {
+        //     continue;
+        // }
+        println!(
+            "[{name}] BevyEgui scale factor: {}, Egui zoom factor: {}, Egui pixels per point: {}",
+            context.egui_settings.scale_factor,
+            context.ctx.get_mut().zoom_factor(),
+            context.ctx.get_mut().pixels_per_point(),
+        );
     }
 }
 
