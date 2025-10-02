@@ -1871,6 +1871,9 @@ pub fn debug_scale_factor(
     InMut(name): InMut<&'static str>,
     mut contexts: Query<UpdateUiSizeAndScaleQuery>,
 ) {
+    if true {
+        return; // disable for now
+    }
     for mut context in contexts.iter_mut() {
         let camera_scale = context.camera.target_scaling_factor().unwrap_or(1.0);
         let bevy_egui_scale_factor = context.egui_settings.scale_factor;

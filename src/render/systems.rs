@@ -310,7 +310,8 @@ pub fn prepare_egui_render_target_data_system(
 
         // Construct a pipeline key based on a render target.
         let Ok(extracted_camera) = extracted_cameras.get(egui_view_target.0) else {
-            log::warn!("ExtractedCamera entity doesn't exist for the Egui view");
+            // log::warn!("ExtractedCamera entity doesn't exist for the Egui view");
+            // This happens when the window is minimized.
             continue;
         };
         data.key = Some(EguiPipelineKey {
