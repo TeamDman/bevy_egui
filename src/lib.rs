@@ -1866,6 +1866,7 @@ pub fn update_ui_size_and_scale_system(mut contexts: Query<UpdateUiSizeAndScaleQ
 
 /// Used to track the change of scaling contributors over time.
 /// Useful for debugging scale factor synchronization.
+#[cfg(feature = "render")]
 #[allow(dead_code)]
 pub fn debug_scale_factor(
     InMut(name): InMut<&'static str>,
